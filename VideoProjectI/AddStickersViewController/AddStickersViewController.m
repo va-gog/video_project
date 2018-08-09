@@ -33,7 +33,6 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    //gog
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
@@ -392,7 +391,7 @@
 
 - (void)dealloc {
     [self.player.currentItem removeObserver:self forKeyPath:@"status"];
-  //  [self removeObserver:self forKeyPath:AVPlayerItemDidPlayToEndTimeNotification context:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:nil];
 }
 
 @end
