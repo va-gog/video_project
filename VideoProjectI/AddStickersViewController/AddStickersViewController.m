@@ -57,6 +57,10 @@
     self.playerLayer.frame = self.contetnView.bounds;
     self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     self.playerLayer.needsDisplayOnBoundsChange = YES;
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:nil];
     
     [self.player.currentItem addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:nil];
     [self.contetnView.layer insertSublayer:self.playerLayer atIndex:0];
@@ -69,19 +73,17 @@
     }];
 }
 
+- (void)playerItemDidReachEnd:(NSNotification *)notification {
+    [self.player.currentItem seekToTime:kCMTimeZero completionHandler:nil];
+    [self.player play];
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
     AVPlayerStatus status = [[change objectForKey:NSKeyValueChangeNewKey] integerValue];
     if (status == AVPlayerStatusReadyToPlay) {
         self.stickerCanvas.frame = self.playerLayer.videoRect;
         self.stickerCanvas.userInteractionEnabled = YES;
-        UIView *leftView =[[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, self.stickerCanvas.frame.origin.x, self.stickerCanvas.bounds.size.height)];
-        leftView.backgroundColor = [UIColor whiteColor];
-        [self.contetnView addSubview:leftView];
-        
-        CGFloat rightViewLocatY = self.stickerCanvas.frame.origin.x + self.stickerCanvas.bounds.size.width;
-        UIView *rightView =[[UIView alloc] initWithFrame:CGRectMake(rightViewLocatY, 0.0, self.contetnView.bounds.size.width - rightViewLocatY, self.stickerCanvas.bounds.size.height)];
-        rightView.backgroundColor = [UIColor whiteColor];
-        [self.contetnView addSubview:rightView];
+        self.stickerCanvas.layer.masksToBounds = YES;
     }
 }
 
@@ -176,7 +178,16 @@
 
 - (void)pinchGestureAction:(UIPinchGestureRecognizer *)gesture {
     if (self.tapedImageView != nil && (gesture.state == UIGestureRecognizerStateBegan || gesture.state == UIGestureRecognizerStateChanged)) {
-        self.tapedImageView.transform = CGAffineTransformScale(self.tapedImageView.transform, gesture.scale, gesture.scale);
+        CGRect bounds = self.tapedImageView.bounds;
+        CGPoint pinchCenter = [gesture locationInView:self.tapedImageView];
+        pinchCenter.x -= CGRectGetMidX(bounds);
+        pinchCenter.y -= CGRectGetMidY(bounds);
+        CGAffineTransform transform = self.tapedImageView.transform;
+        transform = CGAffineTransformTranslate(transform, pinchCenter.x, pinchCenter.y);
+        CGFloat scale = gesture.scale;
+        transform = CGAffineTransformScale(transform, scale, scale);
+        transform = CGAffineTransformTranslate(transform, -pinchCenter.x, -pinchCenter.y);
+        self.tapedImageView.transform = transform;
         gesture.scale = 1.0;
     }
 }
@@ -203,6 +214,7 @@
 
 - (void)tapGestureForChoosenStickerAction:(UITapGestureRecognizer *)gesture {
     [self checktapedSticker:(UIImageView *)gesture.view];
+    [self.stickerCanvas bringSubviewToFront:self.tapedImageView];
 }
 
 #pragma mark - UICollectionViewDataSource
@@ -369,6 +381,7 @@
 
 - (void)dealloc {
     [self.player.currentItem removeObserver:self forKeyPath:@"status"];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:nil];
 }
 
 @end
