@@ -33,6 +33,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    //gog
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
@@ -52,6 +53,12 @@
 - (void)addVideoPlayer {
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
+    self.player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:[self.player currentItem]];
+    
     
     self.playerLayer = [AVPlayerLayer playerLayerWithPlayer:self.player];
     self.playerLayer.frame = self.contetnView.bounds;
@@ -69,24 +76,23 @@
     }];
 }
 
+- (void)playerItemDidReachEnd:(NSNotification *)notification {
+    AVPlayerItem *playerItem = [notification object];
+    [playerItem seekToTime:kCMTimeZero completionHandler:nil];
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
     AVPlayerStatus status = [[change objectForKey:NSKeyValueChangeNewKey] integerValue];
     if (status == AVPlayerStatusReadyToPlay) {
         self.stickerCanvas.frame = self.playerLayer.videoRect;
         self.stickerCanvas.userInteractionEnabled = YES;
-        UIView *leftView =[[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, self.stickerCanvas.frame.origin.x, self.stickerCanvas.bounds.size.height)];
-        leftView.backgroundColor = [UIColor whiteColor];
-        [self.contetnView addSubview:leftView];
-        
-        CGFloat rightViewLocatY = self.stickerCanvas.frame.origin.x + self.stickerCanvas.bounds.size.width;
-        UIView *rightView =[[UIView alloc] initWithFrame:CGRectMake(rightViewLocatY, 0.0, self.contetnView.bounds.size.width - rightViewLocatY, self.stickerCanvas.bounds.size.height)];
-        rightView.backgroundColor = [UIColor whiteColor];
-        [self.contetnView addSubview:rightView];
+        self.stickerCanvas.layer.masksToBounds = YES;
     }
 }
 
 - (void)addGestures {
     UITapGestureRecognizer *tapGestureForPlayer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(playerTapGestureAction:)];
+    self.tapGestureForPlayer = tapGestureForPlayer;
     tapGestureForPlayer.delegate = self;
     [self.contetnView addGestureRecognizer:tapGestureForPlayer];
     
@@ -161,7 +167,7 @@
     } else if (longPressGesture.state == UIGestureRecognizerStateChanged) {
         self.duplicateImageView.center = CGPointMake(touchPointInView.x, touchPointInView.y);
     } else if (longPressGesture.state == UIGestureRecognizerStateEnded) {
-        if (CGRectContainsRect(self.stickerCanvas.frame, self.duplicateImageView.frame)) {
+        if (CGRectContainsPoint(self.stickerCanvas.frame, self.duplicateImageView.frame.origin)) {
             CGRect rectInCanvasView = [self.contetnView convertRect:self.duplicateImageView.frame toView:self.stickerCanvas];
             self.duplicateImageView.frame = rectInCanvasView;
             [self addTapGestureForChoosenImageView:self.duplicateImageView];
@@ -176,7 +182,16 @@
 
 - (void)pinchGestureAction:(UIPinchGestureRecognizer *)gesture {
     if (self.tapedImageView != nil && (gesture.state == UIGestureRecognizerStateBegan || gesture.state == UIGestureRecognizerStateChanged)) {
-        self.tapedImageView.transform = CGAffineTransformScale(self.tapedImageView.transform, gesture.scale, gesture.scale);
+        CGRect bounds = self.tapedImageView.bounds;
+        CGPoint pinchCenter = [gesture locationInView:self.tapedImageView];
+        pinchCenter.x -= CGRectGetMidX(bounds);
+        pinchCenter.y -= CGRectGetMidY(bounds);
+        CGAffineTransform transform = self.tapedImageView.transform;
+        transform = CGAffineTransformTranslate(transform, pinchCenter.x, pinchCenter.y);
+        CGFloat scale = gesture.scale;
+        transform = CGAffineTransformScale(transform, scale, scale);
+        transform = CGAffineTransformTranslate(transform, -pinchCenter.x, -pinchCenter.y);
+        self.tapedImageView.transform = transform;
         gesture.scale = 1.0;
     }
 }
@@ -203,6 +218,7 @@
 
 - (void)tapGestureForChoosenStickerAction:(UITapGestureRecognizer *)gesture {
     [self checktapedSticker:(UIImageView *)gesture.view];
+    [self.stickerCanvas bringSubviewToFront:self.tapedImageView];
 }
 
 #pragma mark - UICollectionViewDataSource
@@ -227,8 +243,16 @@
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
     if ([gestureRecognizer isEqual:self.tapGestureForPlayer]) {
-        CGPoint touchLocat = [touch locationInView:self.stickerCanvas];
-        return CGRectContainsPoint(self.stickerCanvas.bounds, touchLocat);
+        CGPoint touchLocat = CGPointZero;
+        BOOL isContained = NO;
+        for (UIImageView *imageView in self.stickerCanvas.subviews) {
+            touchLocat = [touch locationInView:imageView];
+            isContained = CGRectContainsPoint(imageView.bounds, touchLocat);
+            if (isContained) {
+                break;
+            }
+        }
+        return !isContained;
     } else {
         return YES;
     }
@@ -368,6 +392,7 @@
 
 - (void)dealloc {
     [self.player.currentItem removeObserver:self forKeyPath:@"status"];
+  //  [self removeObserver:self forKeyPath:AVPlayerItemDidPlayToEndTimeNotification context:nil];
 }
 
 @end
