@@ -53,6 +53,12 @@
 - (void)addVideoPlayer {
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
+    self.player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:[self.player currentItem]];
+    
     
     self.playerLayer = [AVPlayerLayer playerLayerWithPlayer:self.player];
     self.playerLayer.frame = self.contetnView.bounds;
@@ -75,8 +81,8 @@
 }
 
 - (void)playerItemDidReachEnd:(NSNotification *)notification {
-    [self.player.currentItem seekToTime:kCMTimeZero completionHandler:nil];
-    [self.player play];
+    AVPlayerItem *playerItem = [notification object];
+    [playerItem seekToTime:kCMTimeZero completionHandler:nil];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context {
@@ -90,6 +96,7 @@
 
 - (void)addGestures {
     UITapGestureRecognizer *tapGestureForPlayer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(playerTapGestureAction:)];
+    self.tapGestureForPlayer = tapGestureForPlayer;
     tapGestureForPlayer.delegate = self;
     [self.contetnView addGestureRecognizer:tapGestureForPlayer];
     
@@ -164,7 +171,7 @@
     } else if (longPressGesture.state == UIGestureRecognizerStateChanged) {
         self.duplicateImageView.center = CGPointMake(touchPointInView.x, touchPointInView.y);
     } else if (longPressGesture.state == UIGestureRecognizerStateEnded) {
-        if (CGRectContainsRect(self.stickerCanvas.frame, self.duplicateImageView.frame)) {
+        if (CGRectContainsPoint(self.stickerCanvas.frame, self.duplicateImageView.frame.origin)) {
             CGRect rectInCanvasView = [self.contetnView convertRect:self.duplicateImageView.frame toView:self.stickerCanvas];
             self.duplicateImageView.frame = rectInCanvasView;
             [self addTapGestureForChoosenImageView:self.duplicateImageView];
@@ -240,8 +247,16 @@
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
     if ([gestureRecognizer isEqual:self.tapGestureForPlayer]) {
-        CGPoint touchLocat = [touch locationInView:self.stickerCanvas];
-        return CGRectContainsPoint(self.stickerCanvas.bounds, touchLocat);
+        CGPoint touchLocat = CGPointZero;
+        BOOL isContained = NO;
+        for (UIImageView *imageView in self.stickerCanvas.subviews) {
+            touchLocat = [touch locationInView:imageView];
+            isContained = CGRectContainsPoint(imageView.bounds, touchLocat);
+            if (isContained) {
+                break;
+            }
+        }
+        return !isContained;
     } else {
         return YES;
         //
