@@ -231,6 +231,7 @@
         return CGRectContainsPoint(self.stickerCanvas.bounds, touchLocat);
     } else {
         return YES;
+        //
     }
 }
 
