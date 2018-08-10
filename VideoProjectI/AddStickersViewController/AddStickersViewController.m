@@ -50,6 +50,7 @@
 }
 
 - (void)addVideoPlayer {
+    //something
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
     self.player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
