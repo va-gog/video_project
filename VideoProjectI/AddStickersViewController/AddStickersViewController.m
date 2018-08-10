@@ -33,6 +33,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    //////////////////
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
@@ -63,6 +64,10 @@
     self.playerLayer.frame = self.contetnView.bounds;
     self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     self.playerLayer.needsDisplayOnBoundsChange = YES;
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(playerItemDidReachEnd:)
+                                                 name:AVPlayerItemDidPlayToEndTimeNotification
+                                               object:nil];
     
     [self.player.currentItem addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:nil];
     [self.contetnView.layer insertSublayer:self.playerLayer atIndex:0];
@@ -254,6 +259,7 @@
         return !isContained;
     } else {
         return YES;
+        //
     }
 }
 
