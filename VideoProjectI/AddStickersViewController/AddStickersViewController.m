@@ -33,7 +33,6 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    //////////////////
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
@@ -259,7 +258,6 @@
         return !isContained;
     } else {
         return YES;
-        //
     }
 }
 
