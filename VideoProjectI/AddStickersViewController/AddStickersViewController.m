@@ -379,6 +379,7 @@
 
 - (void)deleteButtonAction {
     [self.tapedImageView removeFromSuperview];
+    //////////////////
 }
 
 - (BOOL)isPlaying {
