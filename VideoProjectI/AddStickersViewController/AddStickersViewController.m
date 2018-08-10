@@ -33,7 +33,6 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    //////////////////
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
@@ -51,6 +50,7 @@
 }
 
 - (void)addVideoPlayer {
+    //something
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
     self.player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
@@ -259,7 +259,6 @@
         return !isContained;
     } else {
         return YES;
-        //
     }
 }
 
@@ -385,6 +384,7 @@
 
 - (void)deleteButtonAction {
     [self.tapedImageView removeFromSuperview];
+    //////////////////
 }
 
 - (BOOL)isPlaying {
