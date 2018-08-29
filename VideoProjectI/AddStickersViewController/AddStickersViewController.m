@@ -10,22 +10,26 @@
 #import "AddStickersCollectionViewCell.h"
 #import <AVKit/AVKit.h>
 #import "CALayer+Additions.h"
+#import "VPExporter.h"
 
 @interface AddStickersViewController () <UINavigationControllerDelegate, UIImagePickerControllerDelegate, UICollectionViewDelegate, UICollectionViewDataSource, UIGestureRecognizerDelegate>
 
-@property (nonatomic) AVAsset *videoAsset;
-@property (nonatomic) AVPlayer *player;
+
 @property (weak, nonatomic) IBOutlet UIView *contetnView;
 @property (weak, nonatomic) IBOutlet UIView *stickerCanvas;
 @property (weak, nonatomic) IBOutlet UICollectionView *collectionView;
 
-@property (nonatomic) UITapGestureRecognizer *tapGestureForPlayer;
-@property (nonatomic) UIImageView *tapedImageView;
-@property (readonly) BOOL isPlaying;
-@property (nonatomic) NSMutableArray *stickers;
-@property (nonatomic) UIImageView *duplicateImageView;
+@property (nonatomic) AVAsset *videoAsset;
+@property (nonatomic) AVPlayer *player;
 @property (nonatomic) AVPlayerLayer *playerLayer;
-@property (readonly) BOOL isEpty;
+@property (nonatomic) UIImageView *tapedImageView;
+@property (nonatomic) UIImageView *duplicateImageView;
+@property (nonatomic) UITapGestureRecognizer *tapGestureForPlayer;
+@property (nonatomic) UILabel *progressLabel;
+@property (nonatomic) NSMutableArray *stickers;
+@property (nonatomic) NSInteger progressPercent;
+@property (nonatomic, readonly) BOOL isPlaying;
+@property (nonatomic, readonly) BOOL isEpty;
 
 @end
 
@@ -46,11 +50,10 @@
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
     [self.view bringSubviewToFront:self.contetnView];
-
+    
 }
 
 - (void)addVideoPlayer {
-    //something
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
     self.player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
@@ -138,7 +141,7 @@
     self.duplicateImageView = [[UIImageView alloc] initWithImage:imageView.image];
     self.duplicateImageView.frame = CGRectMake((CGFloat)randomX, (CGFloat)randomY, imageSize, imageSize);
     [self checktapedSticker:self.duplicateImageView];
-
+    
     [self addTapGestureForChoosenImageView:self.duplicateImageView];
     
     [self.stickerCanvas addSubview:self.duplicateImageView];
@@ -146,7 +149,7 @@
 
 - (void)checktapedSticker:(UIImageView *)imageview {
     if (self.tapedImageView) {
-    self.tapedImageView.layer.borderColor = [UIColor clearColor].CGColor;
+        self.tapedImageView.layer.borderColor = [UIColor clearColor].CGColor;
     }
     self.tapedImageView = imageview;
     self.tapedImageView.layer.borderColor = [UIColor whiteColor].CGColor;
@@ -204,6 +207,7 @@
     if (self.tapedImageView != nil && (gesture.state == UIGestureRecognizerStateBegan || gesture.state ==  UIGestureRecognizerStateChanged)) {
         self.tapedImageView.transform = CGAffineTransformRotate(self.tapedImageView.transform, gesture.rotation);
         gesture.rotation = 0;
+        
     }
 }
 
@@ -270,86 +274,37 @@
 
 - (void)rightItemAction {
     if (!self.isEpty) {
-        [self addStickersOnVideo];
+        VPExporter *exporter = [[VPExporter alloc] init];
+        [exporter exportVideoAsset:self.videoAsset layer:self.stickerCanvas.layer completionBlock:^(NSURL *URL, NSError *error) {
+            AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
+            AVPlayer *player = [[AVPlayer alloc] initWithURL:URL];
+            vc.player = player;
+            [player play];
+            [self presentViewController:vc animated:YES completion:^{
+                [self.progressLabel removeFromSuperview];
+                self.progressLabel = nil;
+            }];
+        } progressBlock:^(float progress, VPAnimationLayerType layerType) {
+            __weak AddStickersViewController *weakSelf = self;
+            CGFloat labelSize = 50.0;
+            if (!weakSelf.progressLabel) {
+                weakSelf.progressLabel = [[UILabel alloc] initWithFrame:CGRectMake(weakSelf.stickerCanvas.center.x - labelSize / 2, weakSelf.stickerCanvas.center.y - labelSize / 2, labelSize, labelSize)];
+                weakSelf.progressLabel.text = [NSString stringWithFormat:@"0%@", @"%"];
+                [weakSelf.contetnView addSubview:weakSelf.progressLabel];
+            } else {
+                if (layerType == VPAnimationLayerStickers) {
+                    weakSelf.progressLabel.textColor = [UIColor blueColor];
+                    weakSelf.progressPercent = progress * 50;
+                } else {
+                    weakSelf.progressLabel.textColor = [UIColor purpleColor];
+                    weakSelf.progressPercent = progress * 50 + 50;
+                }
+                weakSelf.progressLabel.text = [NSString stringWithFormat:@"%ld%@", weakSelf.progressPercent, @"%"];
+            }
+        }];
     } else {
-        [self showAlertWithTitle:@"There is no choosen stickers" withMessage:@"Please add stickers on the video"];
+        [self showAlertWithTitle:@"There aren't choosen stickers" withMessage:@"Please add stickers on the video"];
     }
-}
-
-- (void)addStickersOnVideo {
-    AVMutableComposition *composition = [AVMutableComposition composition];
-    AVMutableCompositionTrack *compositionTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
-    
-    AVAssetTrack *videoAssetTrack = [self.videoAsset tracksWithMediaType:AVMediaTypeVideo].firstObject;
-    assert(videoAssetTrack);
-    [compositionTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAssetTrack.timeRange.duration)
-                              ofTrack:videoAssetTrack
-                               atTime:kCMTimeZero error:nil];
-    
-    AVMutableVideoCompositionInstruction *instruction = [AVMutableVideoCompositionInstruction videoCompositionInstruction];
-    instruction.timeRange = CMTimeRangeMake(kCMTimeZero, self.videoAsset.duration);
-    
-    AVMutableVideoCompositionLayerInstruction *layerInstruction = [AVMutableVideoCompositionLayerInstruction videoCompositionLayerInstructionWithAssetTrack:compositionTrack];
-    [layerInstruction setTransform:videoAssetTrack.preferredTransform atTime:kCMTimeZero];
-    [layerInstruction setOpacity:0.0 atTime:self.videoAsset.duration];
-    
-    instruction.layerInstructions = @[layerInstruction];
-    
-    CGSize naturalSize = CGSizeApplyAffineTransform(videoAssetTrack.naturalSize, videoAssetTrack.preferredTransform);
-    naturalSize = CGSizeMake(fabs(naturalSize.width), fabs(naturalSize.height));
-    
-    AVMutableVideoComposition *mainCompositionInst = [AVMutableVideoComposition videoComposition];
-    mainCompositionInst.renderSize = naturalSize;
-    mainCompositionInst.instructions = [NSArray arrayWithObject:instruction];
-    mainCompositionInst.frameDuration = CMTimeMake(1, 30);
-    
-    [self addAniamtionOnComposition:mainCompositionInst videoSize:naturalSize];
-    
-    [self exportVideoForComposition:composition videoComposition:mainCompositionInst];
-    
-}
-
-- (void)addAniamtionOnComposition:(AVMutableVideoComposition *)videoComposition videoSize:(CGSize)videoSize {
-    CALayer *parentLayer = [CALayer layer];
-    CALayer *videoLayer = [CALayer layer];
-    parentLayer.frame = CGRectMake(0, 0, videoSize.width, videoSize.height);
-    videoLayer.frame = parentLayer.bounds;
-    parentLayer.geometryFlipped = YES;
-    
-    CGFloat fl = videoSize.width / self.stickerCanvas.layer.bounds.size.width;
-    CALayer *layer = [self.stickerCanvas.layer clone];
-    
-    layer.affineTransform = CGAffineTransformMakeScale(fl, fl);
-    [parentLayer addSublayer:videoLayer];
-    [parentLayer addSublayer:layer];
-    layer.position = CGPointMake(CGRectGetMidX(parentLayer.bounds), CGRectGetMidY(parentLayer.bounds));
-    
-    videoComposition.animationTool = [AVVideoCompositionCoreAnimationTool
-                                      videoCompositionCoreAnimationToolWithPostProcessingAsVideoLayer:videoLayer inLayer:parentLayer];
-}
-
-- (void)exportVideoForComposition:(AVMutableComposition *)mixComposition videoComposition:(AVMutableVideoComposition *)mainCompositionInst {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths objectAtIndex:0];
-    NSString *myPathDocs =  [documentsDirectory stringByAppendingPathComponent:
-                             [NSString stringWithFormat:@"FinalVideo.mov"]];
-    
-    [[NSFileManager defaultManager] removeItemAtPath:myPathDocs error:nil];
-    NSURL *url = [NSURL fileURLWithPath:myPathDocs];
-    
-    AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:mixComposition
-                                                                      presetName:AVAssetExportPresetHighestQuality];
-    exporter.outputURL = url;
-    exporter.outputFileType = AVFileTypeQuickTimeMovie;
-    exporter.shouldOptimizeForNetworkUse = YES;
-    exporter.videoComposition = mainCompositionInst;
-    [exporter exportAsynchronouslyWithCompletionHandler:^{
-        AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
-        AVPlayer *player = [[AVPlayer alloc] initWithURL:url];
-        vc.player = player;
-        [player play];
-        [self presentViewController:vc animated:YES completion:nil];
-    }];
 }
 
 - (void)showAlertWithTitle:(NSString *)title withMessage:(NSString *)message {
@@ -384,7 +339,6 @@
 
 - (void)deleteButtonAction {
     [self.tapedImageView removeFromSuperview];
-    //////////////////
 }
 
 - (BOOL)isPlaying {
