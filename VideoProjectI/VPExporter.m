@@ -16,12 +16,10 @@
 
 @property (nonatomic) void(^progressBlock)(float, VPAnimationLayerType);
 @property (nonatomic) void(^completionBlock)(NSURL *URL, NSError *error);
-@property (nonatomic) AVAssetExportSession *exporterSession;
 @property (nonatomic) AVAsset *asset;
 @property (nonatomic) AVMutableVideoComposition *mainCompositionInst;
 @property (nonatomic) CALayer *canvasLayer;
 @property (nonatomic) VPAnimationLayerType layerType;
-@property (nonatomic) BFCancellationTokenSource *cancellationToken;
 
 @end
 
@@ -170,7 +168,7 @@
     UIImage *watermark = [UIImage imageNamed:@"watermark"];
     
     CALayer *layer = [CALayer layer];
-    
+    layer.contentsGravity = kCAGravityResizeAspect;
     CGSize naturalSize = [self.asset videoSize];
     if (naturalSize.width > naturalSize.height) {
         layer.frame = CGRectMake(15.0, 0.0, [self.asset videoSize].height * 0.3, [self.asset videoSize].height * 0.3);

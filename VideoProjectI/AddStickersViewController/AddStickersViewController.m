@@ -11,6 +11,7 @@
 #import <AVKit/AVKit.h>
 #import "CALayer+Additions.h"
 #import "VPExporter.h"
+#import <Bolts/Bolts.h>
 
 @interface AddStickersViewController () <UINavigationControllerDelegate, UIImagePickerControllerDelegate, UICollectionViewDelegate, UICollectionViewDataSource, UIGestureRecognizerDelegate>
 
@@ -31,7 +32,6 @@
 @property (nonatomic) NSInteger progressPercent;
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) BOOL isEpty;
-@property (nonatomic) BOOL isExporting;
 
 @end
 
@@ -40,8 +40,8 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
+    self.exporter = [[VPExporter alloc] init];
     
     self.stickers = [[NSMutableArray alloc] initWithObjects:@"starI", @"starII", @"starIII", @"starIV", @"starV", @"starVI", @"starVII", @"starVIII", @"starIX", nil];
     
@@ -54,10 +54,17 @@
     [self.view bringSubviewToFront:self.contetnView];
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    self.navigationController.navigationBar.hidden = NO;
+}
+
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    self.exporter.exportCanccelationBlock();
-    [self.navigationController.navigationBar setHidden:YES];
+    if (self.exporter.exporterSession.status == AVAssetExportSessionStatusExporting) {
+        self.exporter.exportCanccelationBlock();
+    }
+    self.navigationController.navigationBar.hidden = YES;
 }
 
 - (void)addVideoPlayer {
@@ -73,10 +80,7 @@
     self.playerLayer.frame = self.contetnView.bounds;
     self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     self.playerLayer.needsDisplayOnBoundsChange = YES;
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(playerItemDidReachEnd:)
-                                                 name:AVPlayerItemDidPlayToEndTimeNotification
-                                               object:nil];
+
     
     [self.player.currentItem addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:nil];
     [self.contetnView.layer insertSublayer:self.playerLayer atIndex:0];
@@ -146,7 +150,11 @@
     NSIndexPath *selectedCellIndexPath = [self.collectionView indexPathForItemAtPoint:touchPoint];
     UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:selectedCellIndexPath];
     
+    if (cell) {
     UIImageView *imageView = (UIImageView *)cell.contentView.subviews.firstObject;
+    NSLog(@"content view size %@", NSStringFromCGRect(cell.contentView.frame));
+    NSLog(@"content view size %@", NSStringFromCGRect(cell.contentView.subviews.firstObject.frame));
+
     CGFloat imageSize = self.stickerCanvas.frame.size.height * 0.3;
     NSInteger randomX = arc4random() % ((int)self.stickerCanvas.frame.size.width - (int)imageSize);
     NSInteger randomY = arc4random() % ((int)self.stickerCanvas.frame.size.height - (int)imageSize);
@@ -158,6 +166,7 @@
     [self addTapGestureForChoosenImageView:self.duplicateImageView];
     
     [self.stickerCanvas addSubview:self.duplicateImageView];
+    }
 }
 
 - (void)longPressGestureAction:(UILongPressGestureRecognizer *)longPressGesture {
@@ -281,15 +290,13 @@
 - (void)rightItemAction {
     if (!self.isEpty) {
         self.navigationItem.rightBarButtonItem.enabled = NO;
-        self.isExporting = YES;
         
-        self.exporter = [[VPExporter alloc] init];
         [self.exporter exportVideoAsset:self.videoAsset layer:self.stickerCanvas.layer completionBlock:^(NSURL *URL, NSError *error) {
             AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
             AVPlayer *player = [[AVPlayer alloc] initWithURL:URL];
             vc.player = player;
-            [player play];
             [self presentViewController:vc animated:YES completion:^{
+                [player play];
                 [self finishExport];
             }];
         } progressBlock:^(float progress, VPAnimationLayerType layerType) {
@@ -311,7 +318,8 @@
                 NSLog(@"%@", self.progressLabel.text);
             }
         } failureBlock:^{
-            [self showAlertWithTitle:@"Export failed" withMessage:@"Please try again"];
+            __weak AddStickersViewController *weakSelf = self;
+            [weakSelf showAlertWithTitle:@"Export failed" withMessage:@"Please try again"];
         }];
     } else {
         [self showAlertWithTitle:@"There aren't choosen stickers" withMessage:@"Please add stickers on the video"];
@@ -320,7 +328,6 @@
 
 - (void)finishExport {
     self.navigationItem.rightBarButtonItem.enabled = YES;
-    self.isExporting = NO;
     [self.progressLabel removeFromSuperview];
     self.progressLabel = nil;
 }

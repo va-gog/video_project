@@ -10,6 +10,8 @@
 
 @class AVAsset;
 @class CALayer;
+@class BFCancellationTokenSource;
+@class AVAssetExportSession;
 
 typedef NS_ENUM(NSUInteger, VPAnimationLayerType) {
     VPAnimationLayerStickers = 0,
@@ -21,6 +23,10 @@ typedef void(^ExportCancellationBlock)(void);
 @interface VPExporter : NSObject
 
 - (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock failureBlock:(void(^)(void))failureBlock;
+
+@property (nonatomic) BFCancellationTokenSource *cancellationToken;
 @property (copy, nonatomic) ExportCancellationBlock exportCanccelationBlock;
+@property (nonatomic) AVAssetExportSession *exporterSession;
+
 
 @end

@@ -16,7 +16,7 @@
 
 - (void)fillCellWithImage:(UIImageView *)imageView {
     imageView.frame = self.contentView.frame;
-    [self.contentView addSubview:imageView];
+    [self. contentView addSubview:imageView];
 }
 
 @end
