@@ -52,12 +52,12 @@
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
     [self.view bringSubviewToFront:self.contetnView];
-    
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     self.exporter.exportCanccelationBlock();
+    [self.navigationController.navigationBar setHidden:YES];
 }
 
 - (void)addVideoPlayer {
