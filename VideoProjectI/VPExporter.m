@@ -12,8 +12,6 @@
 #import "AVAsset+VPAdditions.h"
 #import <Bolts/Bolts.h>
 
-
-
 @interface VPExporter()
 
 @property (nonatomic) void(^progressBlock)(float, VPAnimationLayerType);
@@ -23,29 +21,60 @@
 @property (nonatomic) AVMutableVideoComposition *mainCompositionInst;
 @property (nonatomic) CALayer *canvasLayer;
 @property (nonatomic) VPAnimationLayerType layerType;
+@property (nonatomic) BFCancellationTokenSource *cancellationToken;
 
 @end
 
 @implementation VPExporter
 
-- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock {
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        [self setup];
+    }
+    return self;
+}
+
+- (void)setup {
+    self.cancellationToken = [BFCancellationTokenSource cancellationTokenSource];
+    [self.cancellationToken.token registerCancellationObserverWithBlock:^{
+        NSLog(@"is canccelation requested %d.",self.cancellationToken.isCancellationRequested);
+    }];
+    __weak VPExporter *weakSelf = self;
+    self.exportCanccelationBlock = ^{
+        [weakSelf cancel];
+    };
+}
+
+- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock failureBlock:(void(^)(void))failureBlock {
+    
     self.asset = asset;
     self.canvasLayer = canvasLayer;
     self.completionBlock = completionBlock;
     self.progressBlock = progressBlock;
     self.layerType = VPAnimationLayerStickers;
     
-    [[self successAsync] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
-        self.asset = [AVAsset assetWithURL:t.result];
-        self.layerType = VPAnimationLayerWatermark;
-        return [[self successAsync] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
-            self.completionBlock(t.result, nil);
+    [[self successAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
+        if (t.error || t.isCancelled) {
+            failureBlock();
             return t;
-        }];
-    }];
+        } else {
+            self.asset = [AVAsset assetWithURL:t.result];
+            self.layerType = VPAnimationLayerWatermark;
+            return [[self successAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
+                if (t.error || t.isCancelled) {
+                    failureBlock();
+                } else {
+                    self.completionBlock(t.result, nil);
+                }
+                return t;
+            } cancellationToken:self.cancellationToken.token];
+        }
+    } cancellationToken:self.cancellationToken.token];
 }
 
-- (BFTask *)successAsync {
+- (BFTask *)successAsync:(BFCancellationTokenSource *)cancellationToken {
     BFTaskCompletionSource *successful = [BFTaskCompletionSource taskCompletionSource];
     AVMutableComposition *composition = [self compositionForExport];
     
@@ -67,8 +96,6 @@
     self.exporterSession.videoComposition = self.mainCompositionInst;
     NSTimer *timer = [NSTimer timerWithTimeInterval:0.1 target:self selector:@selector(updateExportProgress) userInfo:nil repeats:YES];
     [[NSRunLoop mainRunLoop] addTimer:timer forMode:NSDefaultRunLoopMode];
-
-    //scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(updateExportProgress) userInfo:nil repeats:YES];
     
     [self.exporterSession exportAsynchronouslyWithCompletionHandler:^{
         [timer invalidate];
@@ -99,7 +126,7 @@
     self.mainCompositionInst.renderSize = naturalSize;
     self.mainCompositionInst.instructions = [NSArray arrayWithObject:instruction];
     self.mainCompositionInst.frameDuration = CMTimeMake(1, 30);
-    return  composition;
+    return composition;
 }
 
 - (void)setupLayerForAnimation {
@@ -121,7 +148,6 @@
     }
     [parentLayer addSublayer:layer];
     
-    
     self.mainCompositionInst.animationTool = [AVVideoCompositionCoreAnimationTool
                                               videoCompositionCoreAnimationToolWithPostProcessingAsVideoLayer:videoLayer inLayer:parentLayer];
 }
@@ -136,13 +162,15 @@
     CGFloat fl = naturalSize.width / self.canvasLayer.bounds.size.width;
     CALayer *layer = [self.canvasLayer clone];
     layer.affineTransform = CGAffineTransformMakeScale(fl, fl);
+    
     return layer;
 }
 
 - (CALayer *)addWatermarkAnimationLayer {
     UIImage *watermark = [UIImage imageNamed:@"watermark"];
-
+    
     CALayer *layer = [CALayer layer];
+    
     CGSize naturalSize = [self.asset videoSize];
     if (naturalSize.width > naturalSize.height) {
         layer.frame = CGRectMake(15.0, 0.0, [self.asset videoSize].height * 0.3, [self.asset videoSize].height * 0.3);
@@ -152,6 +180,12 @@
     [layer setContents:(id)[watermark CGImage]];
     
     return layer;
+}
+
+- (void)cancel {
+    [self.cancellationToken cancel];
+    [self.exporterSession cancelExport];
+    self.exporterSession = nil;
 }
 
 @end

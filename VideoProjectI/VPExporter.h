@@ -16,8 +16,11 @@ typedef NS_ENUM(NSUInteger, VPAnimationLayerType) {
     VPAnimationLayerWatermark = 1
 };
 
+typedef void(^ExportCancellationBlock)(void);
+
 @interface VPExporter : NSObject
 
-- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock;
+- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock failureBlock:(void(^)(void))failureBlock;
+@property (copy, nonatomic) ExportCancellationBlock exportCanccelationBlock;
 
 @end

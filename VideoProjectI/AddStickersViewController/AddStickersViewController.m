@@ -26,10 +26,12 @@
 @property (nonatomic) UIImageView *duplicateImageView;
 @property (nonatomic) UITapGestureRecognizer *tapGestureForPlayer;
 @property (nonatomic) UILabel *progressLabel;
+@property (nonatomic) VPExporter *exporter;
 @property (nonatomic) NSMutableArray *stickers;
 @property (nonatomic) NSInteger progressPercent;
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) BOOL isEpty;
+@property (nonatomic) BOOL isExporting;
 
 @end
 
@@ -53,6 +55,11 @@
     
 }
 
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    self.exporter.exportCanccelationBlock();
+}
+
 - (void)addVideoPlayer {
     self.videoAsset = [AVAsset assetWithURL:self.chosenVideoURL];
     self.player = [[AVPlayer alloc] initWithURL:self.chosenVideoURL];
@@ -61,7 +68,6 @@
                                              selector:@selector(playerItemDidReachEnd:)
                                                  name:AVPlayerItemDidPlayToEndTimeNotification
                                                object:[self.player currentItem]];
-    
     
     self.playerLayer = [AVPlayerLayer playerLayerWithPlayer:self.player];
     self.playerLayer.frame = self.contetnView.bounds;
@@ -103,10 +109,10 @@
     tapGestureForPlayer.delegate = self;
     [self.contetnView addGestureRecognizer:tapGestureForPlayer];
     
-    UITapGestureRecognizer *tapGestureForCollectionView = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(collectionViewTapAction:)];
+    UITapGestureRecognizer *tapGestureForCollectionView = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(collectionViewTapGestureAction:)];
     [self.collectionView addGestureRecognizer:tapGestureForCollectionView];
     
-    UILongPressGestureRecognizer *longPressgesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPressGestureRecognizerAction:)];
+    UILongPressGestureRecognizer *longPressgesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPressGestureAction:)];
     longPressgesture.minimumPressDuration = 0.3;
     [self.collectionView addGestureRecognizer:longPressgesture];
     
@@ -118,17 +124,24 @@
     rotationGesture.delegate = self;
     [self.contetnView addGestureRecognizer:rotationGesture];
     
-    UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGestureRecognizer:)];
+    UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panGestureRecognizerAction:)];
     [self.contetnView addGestureRecognizer:panGesture];
 }
 
-#pragma mark - Gesture Actiions
+- (void)addTapGestureForChoosenImageView:(UIImageView *)imageView {
+    UITapGestureRecognizer *tapGestureForChoosenSticker = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(choosenStickerTapGestureAction:)];
+    tapGestureForChoosenSticker.delegate = self;
+    imageView.userInteractionEnabled = YES;
+    [imageView addGestureRecognizer:tapGestureForChoosenSticker];
+}
+
+#pragma mark - Gesture Actions
 
 - (void)playerTapGestureAction:(UITapGestureRecognizer *)gesture {
     self.player.rate = !self.player.rate;
 }
 
-- (void)collectionViewTapAction:(UITapGestureRecognizer *)gesture {
+- (void)collectionViewTapGestureAction:(UITapGestureRecognizer *)gesture {
     CGPoint touchPoint = [gesture locationInView:self.collectionView];
     NSIndexPath *selectedCellIndexPath = [self.collectionView indexPathForItemAtPoint:touchPoint];
     UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:selectedCellIndexPath];
@@ -140,23 +153,14 @@
     
     self.duplicateImageView = [[UIImageView alloc] initWithImage:imageView.image];
     self.duplicateImageView.frame = CGRectMake((CGFloat)randomX, (CGFloat)randomY, imageSize, imageSize);
-    [self checktapedSticker:self.duplicateImageView];
+    [self checkTapedSticker:self.duplicateImageView];
     
     [self addTapGestureForChoosenImageView:self.duplicateImageView];
     
     [self.stickerCanvas addSubview:self.duplicateImageView];
 }
 
-- (void)checktapedSticker:(UIImageView *)imageview {
-    if (self.tapedImageView) {
-        self.tapedImageView.layer.borderColor = [UIColor clearColor].CGColor;
-    }
-    self.tapedImageView = imageview;
-    self.tapedImageView.layer.borderColor = [UIColor whiteColor].CGColor;
-    self.tapedImageView.layer.borderWidth = 1.5;
-}
-
-- (void)longPressGestureRecognizerAction:(UILongPressGestureRecognizer *)longPressGesture {
+- (void)longPressGestureAction:(UILongPressGestureRecognizer *)longPressGesture {
     CGPoint touchPoint = [longPressGesture locationInView:self.collectionView];
     NSIndexPath *selectedCellIndexPath = [self.collectionView indexPathForItemAtPoint:touchPoint];
     UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:selectedCellIndexPath];
@@ -178,7 +182,7 @@
             CGRect rectInCanvasView = [self.contetnView convertRect:self.duplicateImageView.frame toView:self.stickerCanvas];
             self.duplicateImageView.frame = rectInCanvasView;
             [self addTapGestureForChoosenImageView:self.duplicateImageView];
-            [self checktapedSticker:self.duplicateImageView];
+            [self checkTapedSticker:self.duplicateImageView];
             [self.stickerCanvas addSubview:self.duplicateImageView];
             self.duplicateImageView = nil;
         } else {
@@ -211,40 +215,24 @@
     }
 }
 
-- (void)panGestureRecognizer:(UIPanGestureRecognizer *)gesture {
+- (void)panGestureRecognizerAction:(UIPanGestureRecognizer *)gesture {
     CGPoint transition = [gesture translationInView:self.stickerCanvas];
     self.tapedImageView.center = CGPointMake(self.tapedImageView.center.x + transition.x, self.tapedImageView.center.y + transition.y);
     [gesture setTranslation:CGPointZero inView:self.stickerCanvas];
 }
 
-- (void)addTapGestureForChoosenImageView:(UIImageView *)imageView {
-    UITapGestureRecognizer *tapGestureForChoosenSticker = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapGestureForChoosenStickerAction:)];
-    tapGestureForChoosenSticker.delegate = self;
-    imageView.userInteractionEnabled = YES;
-    [imageView addGestureRecognizer:tapGestureForChoosenSticker];
-}
-
-- (void)tapGestureForChoosenStickerAction:(UITapGestureRecognizer *)gesture {
-    [self checktapedSticker:(UIImageView *)gesture.view];
+- (void)choosenStickerTapGestureAction:(UITapGestureRecognizer *)gesture {
+    [self checkTapedSticker:(UIImageView *)gesture.view];
     [self.stickerCanvas bringSubviewToFront:self.tapedImageView];
 }
 
-#pragma mark - UICollectionViewDataSource
-
-- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
-    return  self.stickers.count;
-}
-
-- (__kindof UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-    AddStickersCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"cell" forIndexPath:indexPath];
-    
-    UIImageView *sticker = [[UIImageView alloc] initWithImage:[UIImage imageNamed:self.stickers[indexPath.item]]];
-    if (cell.contentView.subviews.count != 0) {
-        [[cell.contentView.subviews firstObject] removeFromSuperview];
+- (void)checkTapedSticker:(UIImageView *)imageview {
+    if (self.tapedImageView) {
+        self.tapedImageView.layer.borderColor = [UIColor clearColor].CGColor;
     }
-    
-    [cell fillCellWithImage:sticker];
-    return cell;
+    self.tapedImageView = imageview;
+    self.tapedImageView.layer.borderColor = [UIColor whiteColor].CGColor;
+    self.tapedImageView.layer.borderWidth = 1.5;
 }
 
 #pragma mark - UIGestureRecognizerDelegate
@@ -270,19 +258,39 @@
     return YES;
 }
 
+#pragma mark - UICollectionViewDataSource
+
+- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
+    return  self.stickers.count;
+}
+
+- (__kindof UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    AddStickersCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"cell" forIndexPath:indexPath];
+    
+    UIImageView *sticker = [[UIImageView alloc] initWithImage:[UIImage imageNamed:self.stickers[indexPath.item]]];
+    if (cell.contentView.subviews.count != 0) {
+        [[cell.contentView.subviews firstObject] removeFromSuperview];
+    }
+    
+    [cell fillCellWithImage:sticker];
+    return cell;
+}
+
 #pragma mark - RightBarButtonAction
 
 - (void)rightItemAction {
     if (!self.isEpty) {
-        VPExporter *exporter = [[VPExporter alloc] init];
-        [exporter exportVideoAsset:self.videoAsset layer:self.stickerCanvas.layer completionBlock:^(NSURL *URL, NSError *error) {
+        self.navigationItem.rightBarButtonItem.enabled = NO;
+        self.isExporting = YES;
+        
+        self.exporter = [[VPExporter alloc] init];
+        [self.exporter exportVideoAsset:self.videoAsset layer:self.stickerCanvas.layer completionBlock:^(NSURL *URL, NSError *error) {
             AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
             AVPlayer *player = [[AVPlayer alloc] initWithURL:URL];
             vc.player = player;
             [player play];
             [self presentViewController:vc animated:YES completion:^{
-                [self.progressLabel removeFromSuperview];
-                self.progressLabel = nil;
+                [self finishExport];
             }];
         } progressBlock:^(float progress, VPAnimationLayerType layerType) {
             __weak AddStickersViewController *weakSelf = self;
@@ -300,11 +308,21 @@
                     weakSelf.progressPercent = progress * 50 + 50;
                 }
                 weakSelf.progressLabel.text = [NSString stringWithFormat:@"%ld%@", weakSelf.progressPercent, @"%"];
+                NSLog(@"%@", self.progressLabel.text);
             }
+        } failureBlock:^{
+            [self showAlertWithTitle:@"Export failed" withMessage:@"Please try again"];
         }];
     } else {
         [self showAlertWithTitle:@"There aren't choosen stickers" withMessage:@"Please add stickers on the video"];
     }
+}
+
+- (void)finishExport {
+    self.navigationItem.rightBarButtonItem.enabled = YES;
+    self.isExporting = NO;
+    [self.progressLabel removeFromSuperview];
+    self.progressLabel = nil;
 }
 
 - (void)showAlertWithTitle:(NSString *)title withMessage:(NSString *)message {

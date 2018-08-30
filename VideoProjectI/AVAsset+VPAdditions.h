@@ -12,5 +12,4 @@
 
 - (CGSize)videoSize;
 
-
 @end
