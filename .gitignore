@@ -49,6 +49,7 @@ xcuserdata/
 ## Other
 *.moved-aside
 *.xccheckout
+*.xcuserdata
 *.xcscmblueprint
 
 ## Obj-C/Swift specific
