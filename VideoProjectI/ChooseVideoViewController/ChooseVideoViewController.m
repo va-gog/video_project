@@ -7,7 +7,7 @@
 //
 
 #import "ChooseVideoViewController.h"
-#import <AVKit/AVKit.h>
+#import <AVFoundation/AVFoundation.h>
 #import "AddStickersViewController.h"
 #import <MobileCoreServices/MobileCoreServices.h>
 #import "CALayer+Additions.h"
