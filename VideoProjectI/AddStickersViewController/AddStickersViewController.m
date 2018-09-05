@@ -11,6 +11,7 @@
 #import <AVKit/AVKit.h>
 #import "CALayer+Additions.h"
 #import "VPExporter.h"
+#import <Bolts/Bolts.h>
 
 @interface AddStickersViewController () <UINavigationControllerDelegate, UIImagePickerControllerDelegate, UICollectionViewDelegate, UICollectionViewDataSource, UIGestureRecognizerDelegate>
 
@@ -25,13 +26,10 @@
 @property (nonatomic) UIImageView *tapedImageView;
 @property (nonatomic) UIImageView *duplicateImageView;
 @property (nonatomic) UITapGestureRecognizer *tapGestureForPlayer;
-@property (nonatomic) UILabel *progressLabel;
 @property (nonatomic) VPExporter *exporter;
 @property (nonatomic) NSMutableArray *stickers;
-@property (nonatomic) NSInteger progressPercent;
 @property (nonatomic, readonly) BOOL isPlaying;
 @property (nonatomic, readonly) BOOL isEpty;
-@property (nonatomic) BOOL isExporting;
 
 @end
 
@@ -42,11 +40,17 @@
     
     [self.navigationController.navigationBar setHidden:NO];
     [self navigationBarRightItem:self.navigationItem];
+    self.exporter = [[VPExporter alloc] init];
     
     self.stickers = [[NSMutableArray alloc] initWithObjects:@"starI", @"starII", @"starIII", @"starIV", @"starV", @"starVI", @"starVII", @"starVIII", @"starIX", nil];
     
     [self addVideoPlayer];
     [self addGestures];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    self.navigationController.navigationBar.hidden = NO;
 }
 
 - (void)viewWillLayoutSubviews {
@@ -56,8 +60,11 @@
 
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    self.exporter.exportCanccelationBlock();
+    if (self.exporter.exporterSession.status == AVAssetExportSessionStatusExporting) {
+        [self.exporter cancelExport];
+    }
     [self.navigationController.navigationBar setHidden:YES];
+
 }
 
 - (void)addVideoPlayer {
@@ -73,10 +80,6 @@
     self.playerLayer.frame = self.contetnView.bounds;
     self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     self.playerLayer.needsDisplayOnBoundsChange = YES;
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(playerItemDidReachEnd:)
-                                                 name:AVPlayerItemDidPlayToEndTimeNotification
-                                               object:nil];
     
     [self.player.currentItem addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:nil];
     [self.contetnView.layer insertSublayer:self.playerLayer atIndex:0];
@@ -146,6 +149,7 @@
     NSIndexPath *selectedCellIndexPath = [self.collectionView indexPathForItemAtPoint:touchPoint];
     UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:selectedCellIndexPath];
     
+    if (cell) {
     UIImageView *imageView = (UIImageView *)cell.contentView.subviews.firstObject;
     CGFloat imageSize = self.stickerCanvas.frame.size.height * 0.3;
     NSInteger randomX = arc4random() % ((int)self.stickerCanvas.frame.size.width - (int)imageSize);
@@ -158,6 +162,7 @@
     [self addTapGestureForChoosenImageView:self.duplicateImageView];
     
     [self.stickerCanvas addSubview:self.duplicateImageView];
+    }
 }
 
 - (void)longPressGestureAction:(UILongPressGestureRecognizer *)longPressGesture {
@@ -281,37 +286,30 @@
 - (void)rightItemAction {
     if (!self.isEpty) {
         self.navigationItem.rightBarButtonItem.enabled = NO;
-        self.isExporting = YES;
         
-        self.exporter = [[VPExporter alloc] init];
+        CGFloat labelSize = 50.0;
+        __block UILabel *progressLabel = [[UILabel alloc] initWithFrame:CGRectMake(self.stickerCanvas.center.x - labelSize / 2, self.stickerCanvas.center.y - labelSize / 2, labelSize, labelSize)];
+        progressLabel.text = [NSString stringWithFormat:@"0%@", @"%"];
+        [self.contetnView addSubview:progressLabel];
+        
+        AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
+
+        __weak AddStickersViewController *weakSelf = self;
         [self.exporter exportVideoAsset:self.videoAsset layer:self.stickerCanvas.layer completionBlock:^(NSURL *URL, NSError *error) {
-            AVPlayerViewController *vc = [[AVPlayerViewController alloc] init];
-            AVPlayer *player = [[AVPlayer alloc] initWithURL:URL];
+            AVPlayer *player  = [[AVPlayer alloc] initWithURL:URL];
             vc.player = player;
             [player play];
-            [self presentViewController:vc animated:YES completion:^{
-                [self finishExport];
+            [weakSelf presentViewController:vc animated:YES completion:^{
+                [weakSelf finishExport];
+                [progressLabel removeFromSuperview];
+                progressLabel = nil;
             }];
-        } progressBlock:^(float progress, VPAnimationLayerType layerType) {
-            __weak AddStickersViewController *weakSelf = self;
-            CGFloat labelSize = 50.0;
-            if (!weakSelf.progressLabel) {
-                weakSelf.progressLabel = [[UILabel alloc] initWithFrame:CGRectMake(weakSelf.stickerCanvas.center.x - labelSize / 2, weakSelf.stickerCanvas.center.y - labelSize / 2, labelSize, labelSize)];
-                weakSelf.progressLabel.text = [NSString stringWithFormat:@"0%@", @"%"];
-                [weakSelf.contetnView addSubview:weakSelf.progressLabel];
-            } else {
-                if (layerType == VPAnimationLayerStickers) {
-                    weakSelf.progressLabel.textColor = [UIColor blueColor];
-                    weakSelf.progressPercent = progress * 50;
-                } else {
-                    weakSelf.progressLabel.textColor = [UIColor purpleColor];
-                    weakSelf.progressPercent = progress * 50 + 50;
-                }
-                weakSelf.progressLabel.text = [NSString stringWithFormat:@"%ld%@", weakSelf.progressPercent, @"%"];
-                NSLog(@"%@", self.progressLabel.text);
-            }
+        } progressBlock:^(NSInteger progressPercent, UIColor *color) {
+            progressLabel.textColor = color;
+            progressLabel.text = [NSString stringWithFormat:@"%ld%@", progressPercent, @"%"];
+            NSLog(@"label text %@", progressLabel.text);
         } failureBlock:^{
-            [self showAlertWithTitle:@"Export failed" withMessage:@"Please try again"];
+            [weakSelf showAlertWithTitle:@"Export failed" withMessage:@"Please try again"];
         }];
     } else {
         [self showAlertWithTitle:@"There aren't choosen stickers" withMessage:@"Please add stickers on the video"];
@@ -320,9 +318,6 @@
 
 - (void)finishExport {
     self.navigationItem.rightBarButtonItem.enabled = YES;
-    self.isExporting = NO;
-    [self.progressLabel removeFromSuperview];
-    self.progressLabel = nil;
 }
 
 - (void)showAlertWithTitle:(NSString *)title withMessage:(NSString *)message {

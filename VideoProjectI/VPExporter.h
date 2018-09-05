@@ -10,17 +10,16 @@
 
 @class AVAsset;
 @class CALayer;
-
-typedef NS_ENUM(NSUInteger, VPAnimationLayerType) {
-    VPAnimationLayerStickers = 0,
-    VPAnimationLayerWatermark = 1
-};
+@class AVAssetExportSession;
+@class UIColor;
 
 typedef void(^ExportCancellationBlock)(void);
 
 @interface VPExporter : NSObject
 
-- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock failureBlock:(void(^)(void))failureBlock;
-@property (copy, nonatomic) ExportCancellationBlock exportCanccelationBlock;
+- (void)cancelExport;
+- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(NSInteger progressPercent,UIColor *color))progressBlock failureBlock:(void(^)(void))failureBlock;
+
+@property (nonatomic) AVAssetExportSession *exporterSession;
 
 @end

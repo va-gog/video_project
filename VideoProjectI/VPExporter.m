@@ -12,11 +12,15 @@
 #import "AVAsset+VPAdditions.h"
 #import <Bolts/Bolts.h>
 
+typedef NS_ENUM(NSUInteger, VPAnimationLayerType) {
+    VPAnimationLayerStickers = 0,
+    VPAnimationLayerWatermark = 1
+};
+
 @interface VPExporter()
 
-@property (nonatomic) void(^progressBlock)(float, VPAnimationLayerType);
+@property (nonatomic) void(^progressBlock)(NSInteger progress, UIColor *color);
 @property (nonatomic) void(^completionBlock)(NSURL *URL, NSError *error);
-@property (nonatomic) AVAssetExportSession *exporterSession;
 @property (nonatomic) AVAsset *asset;
 @property (nonatomic) AVMutableVideoComposition *mainCompositionInst;
 @property (nonatomic) CALayer *canvasLayer;
@@ -41,32 +45,33 @@
     [self.cancellationToken.token registerCancellationObserverWithBlock:^{
         NSLog(@"is canccelation requested %d.",self.cancellationToken.isCancellationRequested);
     }];
-    __weak VPExporter *weakSelf = self;
-    self.exportCanccelationBlock = ^{
-        [weakSelf cancel];
-    };
 }
 
-- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(float progress, VPAnimationLayerType layerType))progressBlock failureBlock:(void(^)(void))failureBlock {
+- (void)exportVideoAsset:(AVAsset *)asset layer:(CALayer *)canvasLayer completionBlock:(void(^)(NSURL *URL, NSError *error))completionBlock progressBlock:(void(^)(NSInteger progress, UIColor *color))progressBlock failureBlock:(void(^)(void))failureBlock {
     
     self.asset = asset;
     self.canvasLayer = canvasLayer;
     self.completionBlock = completionBlock;
     self.progressBlock = progressBlock;
     self.layerType = VPAnimationLayerStickers;
-    
-    [[self successAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
-        if (t.error || t.isCancelled) {
+    [[self exportVideoAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
+        if (t.error || [[t.result class] isEqual:[NSError class]]) {
+            if (failureBlock) {
             failureBlock();
+            }
             return t;
         } else {
             self.asset = [AVAsset assetWithURL:t.result];
             self.layerType = VPAnimationLayerWatermark;
-            return [[self successAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
-                if (t.error || t.isCancelled) {
+            return [[self exportVideoAsync:self.cancellationToken] continueWithSuccessBlock:^id _Nullable(BFTask * _Nonnull t) {
+                if (t.error || [[t.result class] isEqual:[NSError class]]) {
+                    if (failureBlock) {
                     failureBlock();
+                    }
                 } else {
+                    if (completionBlock) {
                     self.completionBlock(t.result, nil);
+                    }
                 }
                 return t;
             } cancellationToken:self.cancellationToken.token];
@@ -74,7 +79,7 @@
     } cancellationToken:self.cancellationToken.token];
 }
 
-- (BFTask *)successAsync:(BFCancellationTokenSource *)cancellationToken {
+- (BFTask *)exportVideoAsync:(BFCancellationTokenSource *)cancellationToken {
     BFTaskCompletionSource *successful = [BFTaskCompletionSource taskCompletionSource];
     AVMutableComposition *composition = [self compositionForExport];
     
@@ -99,12 +104,25 @@
     
     [self.exporterSession exportAsynchronouslyWithCompletionHandler:^{
         [timer invalidate];
-        [successful setResult:url];
+            switch (self.exporterSession.status) {
+                case AVAssetExportSessionStatusCancelled:
+                    [successful cancel];
+                    break;
+                case AVAssetExportSessionStatusCompleted:
+                    [successful setResult:self.exporterSession.outputURL];
+                    break;
+                case AVAssetExportSessionStatusFailed:
+                    [successful setError:self.exporterSession.error];
+                    break;
+                default:
+                    [successful setResult:self.exporterSession.outputURL];
+                    break;
+        }
     }];
     return successful.task;
 }
 
-- (AVMutableComposition *)compositionForExport{
+- (AVMutableComposition *)compositionForExport {
     AVMutableComposition *composition = [AVMutableComposition composition];
     AVMutableCompositionTrack *compositionTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
     
@@ -141,10 +159,9 @@
     [parentLayer addSublayer:videoLayer];
     CALayer *layer = nil;
     if (self.layerType == VPAnimationLayerStickers) {
-        layer = [self addStickerAnimationLayer];
-        layer.position = CGPointMake(CGRectGetMidX(parentLayer.bounds), CGRectGetMidY(parentLayer.bounds));
+        layer = [self stickerAnimationLayer:(CGPointMake(CGRectGetMidX(parentLayer.bounds), CGRectGetMidY(parentLayer.bounds)))];
     } else if (self.layerType == VPAnimationLayerWatermark) {
-        layer = [self addWatermarkAnimationLayer];
+        layer = [self watermarkAnimationLayer];
     }
     [parentLayer addSublayer:layer];
     
@@ -153,20 +170,29 @@
 }
 
 - (void)updateExportProgress {
-    self.progressBlock(self.exporterSession.progress, self.layerType);
+    NSInteger progress = 0;
+    if (self.layerType == VPAnimationLayerStickers) {
+        progress = self.exporterSession.progress * 50;
+        self.progressBlock(progress, [UIColor blueColor]);
+    } else {
+        progress = self.exporterSession.progress * 50 + 50;
+        self.progressBlock(progress, [UIColor purpleColor]);
+    }
 }
 
-- (CALayer *)addStickerAnimationLayer {
+- (CALayer *)stickerAnimationLayer:(CGPoint)position {
     CGSize naturalSize = [self.asset videoSize];
     
     CGFloat fl = naturalSize.width / self.canvasLayer.bounds.size.width;
     CALayer *layer = [self.canvasLayer clone];
     layer.affineTransform = CGAffineTransformMakeScale(fl, fl);
     
+    layer.position = position;
+    
     return layer;
 }
 
-- (CALayer *)addWatermarkAnimationLayer {
+- (CALayer *)watermarkAnimationLayer {
     UIImage *watermark = [UIImage imageNamed:@"watermark"];
     
     CALayer *layer = [CALayer layer];
@@ -182,7 +208,7 @@
     return layer;
 }
 
-- (void)cancel {
+- (void)cancelExport {
     [self.cancellationToken cancel];
     [self.exporterSession cancelExport];
     self.exporterSession = nil;
