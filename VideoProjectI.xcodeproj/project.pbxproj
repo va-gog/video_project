@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		96DE3CCF880925C587720BDD /* libPods-VideoProjectIUITests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8104161BA33482A94A1AA642 /* libPods-VideoProjectIUITests.a */; };
+		A46FFB9F217DB5F800D1855E /* wdi.m in Sources */ = {isa = PBXBuildFile; fileRef = A46FFB9E217DB5F800D1855E /* wdi.m */; };
+		A46FFBA2217DB8B500D1855E /* G.m in Sources */ = {isa = PBXBuildFile; fileRef = A46FFBA1217DB8B500D1855E /* G.m */; };
 		A47EFBFE213408D100984375 /* VPExporter.m in Sources */ = {isa = PBXBuildFile; fileRef = A47EFBFD213408D100984375 /* VPExporter.m */; };
 		A47EFC0421341ED300984375 /* AVAsset+VPAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = A47EFC0321341ED300984375 /* AVAsset+VPAdditions.m */; };
 		A47EFC0721341F1700984375 /* AVAssetTrack+VPAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = A47EFC0621341F1700984375 /* AVAssetTrack+VPAdditions.m */; };
@@ -51,6 +53,10 @@
 		51EC97C2E6590096F3855C57 /* Pods-VideoProjectI.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VideoProjectI.debug.xcconfig"; path = "Pods/Target Support Files/Pods-VideoProjectI/Pods-VideoProjectI.debug.xcconfig"; sourceTree = "<group>"; };
 		6BB41719F3274C9EB8F1D797 /* Pods-VideoProjectI.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VideoProjectI.release.xcconfig"; path = "Pods/Target Support Files/Pods-VideoProjectI/Pods-VideoProjectI.release.xcconfig"; sourceTree = "<group>"; };
 		8104161BA33482A94A1AA642 /* libPods-VideoProjectIUITests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VideoProjectIUITests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A46FFB9D217DB5F800D1855E /* wdi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = wdi.h; sourceTree = "<group>"; };
+		A46FFB9E217DB5F800D1855E /* wdi.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = wdi.m; sourceTree = "<group>"; };
+		A46FFBA0217DB8B500D1855E /* G.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = G.h; sourceTree = "<group>"; };
+		A46FFBA1217DB8B500D1855E /* G.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = G.m; sourceTree = "<group>"; };
 		A47EFBFC213408D100984375 /* VPExporter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = VPExporter.h; sourceTree = "<group>"; };
 		A47EFBFD213408D100984375 /* VPExporter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VPExporter.m; sourceTree = "<group>"; };
 		A47EFC0221341ED300984375 /* AVAsset+VPAdditions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AVAsset+VPAdditions.h"; sourceTree = "<group>"; };
@@ -154,6 +160,10 @@
 				A4DA8B3121145D2B00ACF644 /* CALayer+Additions.m */,
 				A47EFC0221341ED300984375 /* AVAsset+VPAdditions.h */,
 				A47EFC0321341ED300984375 /* AVAsset+VPAdditions.m */,
+				A46FFBA0217DB8B500D1855E /* G.h */,
+				A46FFBA1217DB8B500D1855E /* G.m */,
+				A46FFB9D217DB5F800D1855E /* wdi.h */,
+				A46FFB9E217DB5F800D1855E /* wdi.m */,
 				A47EFC0521341F1700984375 /* AVAssetTrack+VPAdditions.h */,
 				A47EFC0621341F1700984375 /* AVAssetTrack+VPAdditions.m */,
 				A47EFBFC213408D100984375 /* VPExporter.h */,
@@ -412,8 +422,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A46FFB9F217DB5F800D1855E /* wdi.m in Sources */,
 				A4DA8AF021119CC900ACF644 /* main.m in Sources */,
 				A4DA8B1521119CEE00ACF644 /* AddStickersViewController.m in Sources */,
+				A46FFBA2217DB8B500D1855E /* G.m in Sources */,
 				A4DA8AE221119CC600ACF644 /* AppDelegate.m in Sources */,
 				A4DA8B35211836C700ACF644 /* ChooseVideoViewController.m in Sources */,
 				A47EFBFE213408D100984375 /* VPExporter.m in Sources */,

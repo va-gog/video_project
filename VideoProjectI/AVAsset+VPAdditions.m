@@ -15,7 +15,7 @@
     AVAssetTrack *videoAssetTrack = [self tracksWithMediaType:AVMediaTypeVideo].firstObject;
     if (!videoAssetTrack) {
         return CGSizeZero;
-    }
+    } //jqbwpdbq[pjbbuerc
     return [videoAssetTrack videoSize];
 }
 
